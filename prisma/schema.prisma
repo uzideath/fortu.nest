@@ -1,0 +1,132 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =============== Enums ===============
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  TICKET_PURCHASE
+  WINNINGS
+}
+
+// =============== Models ===============
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  balance   Decimal  @default("0.00")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tickets       Ticket[] // Tickets bought individually
+  groupMembers  GroupMember[]
+  transactions  Transaction[]
+  contributions TicketContribution[] // Contributions to group tickets
+}
+
+model Group {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  members GroupMember[]
+  tickets Ticket[] // Tickets bought on behalf of the group
+}
+
+model GroupMember {
+  id       Int      @id @default(autoincrement())
+  userId   Int
+  groupId  Int
+  joinedAt DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+
+  // A user can be in a group only once
+  @@unique([userId, groupId])
+}
+
+model Lottery {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  startDate          DateTime
+  endDate            DateTime
+  winningNumber      String?
+  winningAnnouncedAt DateTime?
+
+  // Relations
+  tickets Ticket[]
+}
+
+model Ticket {
+  id            Int      @id @default(autoincrement())
+  ticketNumber  String
+  cost          Decimal  @default("0.00")
+  winningAmount Decimal? // How much this ticket won (if it’s a winner)
+  createdAt     DateTime @default(now())
+
+  // Foreign keys
+  userId    Int?
+  groupId   Int?
+  lotteryId Int
+
+  // Relations
+  user          User?                @relation(fields: [userId], references: [id])
+  group         Group?               @relation(fields: [groupId], references: [id])
+  lottery       Lottery              @relation(fields: [lotteryId], references: [id])
+  contributions TicketContribution[] // Tracks how much each user contributed to this ticket (especially for group tickets)
+  Transaction   Transaction[]
+
+  // Ensure each lottery/ticketNumber combination is unique
+  @@unique([lotteryId, ticketNumber])
+}
+
+model TicketContribution {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  ticketId          Int
+  amountContributed Decimal @default("0.00") // How much a user contributed to the ticket’s cost
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  // You could add a unique constraint if a user should only contribute once per ticket:
+  // @@unique([userId, ticketId])
+}
+
+model Transaction {
+  id              Int             @id @default(autoincrement())
+  amount          Decimal
+  transactionType TransactionType
+  createdAt       DateTime        @default(now())
+
+  // Foreign Key
+  userId   Int
+  ticketId Int? // Not all transactions must link to a ticket (e.g., deposits/withdrawals)
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id])
+  ticket Ticket? @relation(fields: [ticketId], references: [id])
+}
