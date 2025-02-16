@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    container_name: nestjs_app
+    ports:
+      - "3005:3005"
+    environment:
+      - POSTGRES_HOST=database
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - REDIS_HOST=keys
+      - REDIS_PORT=6379
+    depends_on:
+      - database
+      - keys
+    restart: unless-stopped
+
+  database:
+    image: postgres:latest
+    container_name: postgres-answerclinic
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  keys:
+    image: redis:7.4.2-alpine
+    container_name: redis-answerclinic
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
