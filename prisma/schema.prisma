@@ -1,5 +1,3 @@
-// schema.prisma
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -10,7 +8,6 @@ generator client {
 }
 
 // =============== Enums ===============
-
 enum Role {
   ADMIN
   USER
@@ -36,10 +33,40 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  tickets       Ticket[] // Tickets bought individually
+  tickets       Ticket[]
   groupMembers  GroupMember[]
   transactions  Transaction[]
-  contributions TicketContribution[] // Contributions to group tickets
+  contributions TicketContribution[]
+  refreshTokens RefreshToken[] // multiple tokens
+  oauthAccounts OAuthAccount[] // for future OAuth providers
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          Int      @id @default(autoincrement())
+  hashedToken String // store the hashed token
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  isRevoked   Boolean  @default(false) // mark if a token is revoked
+
+  @@map("refresh_tokens")
+}
+
+model OAuthAccount {
+  id           Int      @id @default(autoincrement())
+  provider     String
+  providerId   String // e.g., Google's unique ID for the user
+  providerData Json? // store any additional data from the provider
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+
+  // Ensure you can’t have duplicates from the same provider
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
 }
 
 model Group {
@@ -50,7 +77,9 @@ model Group {
 
   // Relations
   members GroupMember[]
-  tickets Ticket[] // Tickets bought on behalf of the group
+  tickets Ticket[]
+
+  @@map("groups")
 }
 
 model GroupMember {
@@ -65,6 +94,7 @@ model GroupMember {
 
   // A user can be in a group only once
   @@unique([userId, groupId])
+  @@map("group_members")
 }
 
 model Lottery {
@@ -77,13 +107,15 @@ model Lottery {
 
   // Relations
   tickets Ticket[]
+
+  @@map("lotteries")
 }
 
 model Ticket {
   id            Int      @id @default(autoincrement())
   ticketNumber  String
   cost          Decimal  @default("0.00")
-  winningAmount Decimal? // How much this ticket won (if it’s a winner)
+  winningAmount Decimal?
   createdAt     DateTime @default(now())
 
   // Foreign keys
@@ -95,25 +127,25 @@ model Ticket {
   user          User?                @relation(fields: [userId], references: [id])
   group         Group?               @relation(fields: [groupId], references: [id])
   lottery       Lottery              @relation(fields: [lotteryId], references: [id])
-  contributions TicketContribution[] // Tracks how much each user contributed to this ticket (especially for group tickets)
+  contributions TicketContribution[]
   Transaction   Transaction[]
 
   // Ensure each lottery/ticketNumber combination is unique
   @@unique([lotteryId, ticketNumber])
+  @@map("tickets")
 }
 
 model TicketContribution {
   id                Int     @id @default(autoincrement())
   userId            Int
   ticketId          Int
-  amountContributed Decimal @default("0.00") // How much a user contributed to the ticket’s cost
+  amountContributed Decimal @default("0.00")
 
   // Relations
   user   User   @relation(fields: [userId], references: [id])
   ticket Ticket @relation(fields: [ticketId], references: [id])
 
-  // You could add a unique constraint if a user should only contribute once per ticket:
-  // @@unique([userId, ticketId])
+  @@map("ticket_contributions")
 }
 
 model Transaction {
@@ -124,9 +156,11 @@ model Transaction {
 
   // Foreign Key
   userId   Int
-  ticketId Int? // Not all transactions must link to a ticket (e.g., deposits/withdrawals)
+  ticketId Int?
 
   // Relations
   user   User    @relation(fields: [userId], references: [id])
   ticket Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@map("transactions")
 }
