@@ -3,7 +3,7 @@ services:
     image: postgres:latest
     container_name: postgres-fortu
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -16,7 +16,9 @@ services:
     image: redis:7.4.2-alpine
     container_name: redis-fortu
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     restart: unless-stopped
 
 volumes:
