@@ -11,21 +11,35 @@ import { AuthGuard } from '@nestjs/passport';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { User } from '@prisma/client';
+import { RegisterDto } from './types/register.types';
 
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
+    @Post('register')
+    async register(@Body() registerDto: RegisterDto) {
+        const newUser = await this.authService.register(registerDto);
+        return {
+            message: 'User registered successfully',
+            user: {
+                id: newUser.id,
+                name: newUser.name,
+                email: newUser.email,
+            },
+        };
+    }
+
     @UseGuards(AuthGuard('local'))
     @Post('login')
-    async login(@Req() req: Request, @Res() res: Response) {
-        // Local strategy sets user in req.user if valid
-        const user = req.user as User;  // <-- type cast
-        if (!user) {
-            // handle the case where user is undefined
-            return res.status(401).json({ message: 'No user found in request' });
-        }
-        return this.authService.login(user, res);
+    async login(@Req() req, @Res() res: Response) {
+        const user = req.user as User;
+        // This calls AuthService.login() which sets cookies
+        await this.authService.login(user, res);
+
+        // Then explicitly send JSON (or any response) 
+        // so the request ends properly
+        return res.json({ message: 'Login successful' });
     }
 
     @Post('refresh')

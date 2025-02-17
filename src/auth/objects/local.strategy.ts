@@ -13,12 +13,13 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         super({ usernameField: 'email' });
     }
 
-    async validate(entry: LoginDto): Promise<User> {
-        // Passport automatically passes email/password to the validate method
-        const user = await this.authService.validateUser(entry.email, entry.password);
+    // local.strategy.ts
+    async validate(email: string, password: string): Promise<User> {
+        const user = await this.authService.validateUser(email, password);
         if (!user) {
             throw new UnauthorizedException();
         }
         return user;
     }
+
 }

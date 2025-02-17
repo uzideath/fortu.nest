@@ -2,12 +2,15 @@ import {
     Injectable,
     UnauthorizedException,
     ForbiddenException,
+    ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { RegisterDto } from './types/register.types';
+import { Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -32,28 +35,53 @@ export class AuthService {
         return user;
     }
 
+    async register(registerDto: RegisterDto): Promise<User> {
+        // 1. Check if user with this email already exists
+        const existing = await this.prisma.user.findUnique({
+            where: { email: registerDto.email },
+        });
+        if (existing) {
+            throw new ConflictException('Email is already in use');
+        }
+
+        // 2. Hash the password
+        const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+
+        // 3. Create the user in DB
+        const newUser = await this.prisma.user.create({
+            data: {
+                name: registerDto.name,
+                email: registerDto.email,
+                password: hashedPassword,
+            },
+        });
+
+        return newUser;
+    }
+
     /**
      * After successful login (LocalStrategy), issue tokens.
      * Set them as secure, httpOnly cookies in the response.
      */
-    async login(user: User, response: any) {
+    async login(user: User, response: Response) {
         const tokens = await this.getTokens(user.id, user.email);
         await this.saveRefreshToken(user.id, tokens.refreshToken);
 
-        // set cookies (httpOnly, secure recommended)
         response.cookie('Authentication', tokens.accessToken, {
             httpOnly: true,
-            secure: false, // set to true in production with HTTPS
-            maxAge: 15 * 60 * 1000, // 15 minutes in ms
+            maxAge: 15 * 60 * 1000,
+            // secure: true if in production with HTTPS
         });
         response.cookie('Refresh', tokens.refreshToken, {
             httpOnly: true,
-            secure: false, // set to true in production
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        return { message: 'Login successful' };
+        // NOTE: do NOT return an object here if you're using @Res(),
+        // because Nest won't handle that automatically.
+        // We'll finalize the response in the controller:
     }
+
 
     /**
      * Refresh endpoint. Validate the refresh cookie, then rotate.
